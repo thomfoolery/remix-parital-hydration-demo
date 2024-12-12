@@ -2,7 +2,7 @@
 
 ## Problem/Opportunity
 
-In Remix, React components can become expensive to hydrate on the client when their data models become too large. This data can significantly impact page weight and speed when transferring static page content twice, first as SSR (server side rendered) HTML, and again as serialized data objects client data.
+In Remix, React components can become expensive to hydrate on the client when their data models become too large. This data can significantly impact page weight and speed when transferring static page content twice, first as SSR (server side rendered) HTML, and again as serialized data for subsequent client side hydration.
 
 We encountered this problem on the Greenfield frontend on Shopify.dev project where our current Admin GraphQL API reference contains over 3000 static navigation items. These 3000+ links are transmitted to the client in the format of HTML, and then again as a Javascript object used to render the component again during client-side hydration.
 
@@ -158,13 +158,15 @@ There is a rough edge to this decorator in that the root elements of both the se
 
 This detail has the side effect that the decorated component’s root can not be wrapped in a React Fragment.
 
+We have not found a clear way of enforcing that the server component code is not bundled for the client. To ensure dead code is not sent to the client we must remember to wrap the React component code with the serverOnly$ directive from vite-env-only.
+
 ## Risks, mitigations and sharp edges
 
 Things to be aware of when opting out of client side hydration.
 
 ### Eliminating component code from client bundle is not straightforward
 
-We have chosen to use the vite-env-only package because it simplifies code elimination, but it requires a ViteJS plugin and the additional step of wrapping your server component code that if missed results in unnecessary code being sent to the client.
+We have chosen to use the `vite-env-only` package because it simplifies code elimination, but it requires a ViteJS plugin and the additional step of wrapping your server component code in `serverOnly$`. If this step is missed, dead code is sent to the client.
 
 We will continue to experiment with different approaches that do not require external dependencies.
 
