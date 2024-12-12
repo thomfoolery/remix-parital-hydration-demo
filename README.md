@@ -18,6 +18,28 @@ We propose 2 patterns for implementing partial hydration when a component is dee
 1. Opt out of data loaders sending data to the client
 2. Opt out of client-side hydration
 
+The final challenge is preventing the SSR’d component code from being bundled and sent down to the client. Remix provides a few patterns for [splitting up client and server code](https://remix.run/docs/en/main/discussion/server-vs-client#splitting-up-client-and-server-code), but we ran into issues when we tried to conditionally return the appropriate component at runtime.
+
+> Internal server error: Server-only module referenced by client
+> './Content.server' imported by 'app/component/Content.tsx'
+
+The [vite-env-only](https://github.com/pcattori/vite-env-only) package provides utilities for isolating server-only and client-only code. This required the usage of a ViteJS plugin to process these directives at built time. This is not ideal, but it simplifies the developer experience.
+
+The `vite-env-only` ViteJS plugin integration:
+
+```tsx
+// yarn add -D vite-env-only
+
+import { defineConfig } from "vite";
+import { envOnlyMacros } from "vite-env-only";
+
+export default defineConfig({
+  plugins: [...envOnlyMacros()],
+});
+```
+
+[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/thomfoolery/remix-parital-hydration-demo)
+
 ### Opt out of data loaders sending data to the client
 
 To remove loader data from the client payload,
@@ -39,24 +61,23 @@ async function loader() {
 
   // prevent `content` from being serialized and sent to the client
   // by setting the property's `enumerable` attribute to false
-  Object.defineProperty(data, 'largeDataObject', {enumerable: false});
+  Object.defineProperty(data, "largeDataObject", { enumerable: false });
 
-
-  return data
+  return data;
 }
 
-function MyRoute () {
+function MyRoute() {
   const data = useLoaderData<typeof loader>();
 
   console.log(data.smallDataObject); // defined  on client and server
   console.log(data.largeDataObject); // undefined on the client only
 
-  return (
-    {/* render layout */}
-  )
+  return {
+    /* render layout */
+  };
 }
 
-export {loader)
+export { loader };
 export default MyRoute;
 ```
 
@@ -64,16 +85,17 @@ export default MyRoute;
 
 To opt out of client side hydration define 2 React components, one for the server and one for the client.
 
-The server component should just return the expected HTML markup without the use of state, event handlers or hooks.
+The server component should just return the expected HTML markup without the use of state, event handlers or hooks. We wrap this function in `serverOnly$` to prevent it from being bundled for the client at build time.
 
-The client component should return a div with the suppressHydrationWarning prop applied and its inner HTML dangerously set to an empty string.
+The client component should return a `div` with the `suppressHydrationWarning` prop applied and its inner HTML dangerously set to an empty string.
 
-Finally, the component’s module must dynamically export the server component if import.meta.env.SSR is true and the client component when it is false.
+Finally, the component’s module must dynamically export the server component if `import.meta.env.SSR` is true and the client component when it is false.
 
 Pseuodo-code
 
 ```tsx
 // components/MyComponent/MyComponent.tsx
+import { serverOnly$ } from "vite-env-only";
 
 // use dangerouslySetInnerHTML to render an empty div
 // and suppress client side hydration warnings
@@ -86,13 +108,14 @@ function MyClientComponent() {
   return CLIENT_COMPONENT_MARKUP;
 }
 
-function MyServerComponent() {
+// serverOnly$ ensures this code is not bundled for the client at build time
+const MyServerComponent = serverOnly$(function MyServerComponent() {
   const largeDataPayload = useDataLoader<LoaderData>();
 
   // to prevent hydration errors ensure the root element
   // matches what is returned in the client component
   return <div>{/* render expensive component content */}</div>;
-}
+});
 
 // render the appropriate component
 const MyComponent = import.meta.env.SSR ? MyServerComponent : MyClientComponent;
@@ -135,9 +158,19 @@ There is a rough edge to this decorator in that the root elements of both the se
 
 This detail has the side effect that the decorated component’s root can not be wrapped in a React Fragment.
 
-## Risks and mitigations
+## Risks, mitigations and sharp edges
 
 Things to be aware of when opting out of client side hydration.
+
+### Eliminating component code from client bundle is not straightforward
+
+We have chosen to use the vite-env-only package because it simplifies code elimination, but it requires a ViteJS plugin and the additional step of wrapping your server component code that if missed results in unnecessary code being sent to the client.
+
+We will continue to experiment with different approaches that do not require external dependencies.
+
+### Matching component root elements
+
+The client and server components must return a root with the same element tag name otherwise a hydration error will be thrown. The use of a React Fragment at the component’s root will also cause a hydration error to be thrown.
 
 ### Pattern fragmentation
 

@@ -1,4 +1,5 @@
 import { useLoaderData } from "@remix-run/react";
+import { serverOnly$ } from "vite-env-only/macros";
 import { loader } from "~/routes/_index";
 
 // use dangerouslySetInnerHTML to render an empty div
@@ -12,7 +13,11 @@ function ContentClientComponent() {
   return CLIENT_SIDE_COMPONENT_MARKUP;
 }
 
-function ContentServerComponent({ children }: { children?: React.ReactNode }) {
+const ContentServerComponent = serverOnly$(function ContentServerComponent({
+  children,
+}: {
+  children?: React.ReactNode;
+}) {
   const { content } = useLoaderData<typeof loader>();
 
   // to prevent hydration errors ensure the root element
@@ -27,7 +32,7 @@ function ContentServerComponent({ children }: { children?: React.ReactNode }) {
       ))}
     </div>
   );
-}
+});
 
 // render the appropriate component
 const Content = import.meta.env.SSR

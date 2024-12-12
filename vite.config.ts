@@ -1,6 +1,7 @@
-import { vitePlugin as remix } from "@remix-run/dev";
 import { defineConfig } from "vite";
+import { envOnlyMacros } from "vite-env-only";
 import tsconfigPaths from "vite-tsconfig-paths";
+import { vitePlugin as remix } from "@remix-run/dev";
 
 declare module "@remix-run/node" {
   interface Future {
@@ -19,6 +20,7 @@ export default defineConfig({
         v3_lazyRouteDiscovery: true,
       },
     }),
+    envOnlyMacros(),
     tsconfigPaths(),
   ],
 });
